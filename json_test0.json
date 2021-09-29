@@ -1,0 +1,89 @@
+
+
+数据接收服务
+api/upload:
+将request.json的原生数据保存至本地--lpush batch_id 到Redis服务
+
+job:
+blpop redis任务--根据 batch_id 加载本地数据-- 下载附件数据重新保存到本地
+
+
+数据搜索服务
+job:
+SipSearchServer--创建索引--blpop redis任务--查询pg库(get_records)--封装结果(detail_wrapper)--rpush_sync封装结果到Redis服务
+
+api/match:
+rpush_sync任务到Redis服务--获取job服务推送到Redis的封装结果--对该结果做二次封装(api_result_wrapper,sub_results)--返回最终结果
+
+
+
+###############################################################
+一、搭建环境:
+    1.拉取Python库
+        git clone git@github.com:mnvai/textdog.git
+        git clone git@github.com:mnvai/retrievaldog.git
+        git clone git@github.com:mnvai/rankerdog.git
+        git clone git@github.com:mnvai/esdog.git
+        git clone https://github.com/dongrixinyu/chinese_keyphrase_extractor.git
+
+    Windows安装本地环境时将textdog/setup.cfg中的OpenCC ~= 1.1.2 改为 OpenCC ~= 1.1.1    # 因为win没有1.1.2的版本(即Linux和服务器无需更改)
+
+    2.cd转到对应目录下进行安装(默认install在当前虚拟环境的site-packages下)
+        pip install .\chinese_keyphrase_extractor\
+        pip install .\esdog\
+        pip install .\retrievaldog\
+        pip install .\textdog\
+        pip install .\rankerdog\
+
+
+    3.安装项目里requirements.txt中所需的Python库
+        cd ./xxx-project/
+        pip install -r ./requirements.txt
+        pip install https://github.com/kpu/kenlm/archive/master.zip
+
+***************************************************************
+
+二、确认已安装 Docker、PostgreSQL 并创建所需数据库
+
+***************************************************************
+
+三、拉取数据集并根据 local_steup.sh 启动所需的相关服务(确保和本地一致)
+    主要由elasticsearch,kibana,postgres,redis--目前暂未跳过Redis服务
+    
+    docker pull elasticsearch:7.8.1
+    docker pull redis
+    docker pull kibana:7.8.1
+
+    docker stop elasticsearch && docker rm elasticsearch
+    docker stop kibana && docker rm kibana
+    docker stop redis && docker rm redis
+
+    docker run -d --name elasticsearch -p 9200:9200 -e "discovery.type=single-node" elasticsearch:7.8.1
+    docker run -d --name=kibana --restart=always -p 5601:5601 -v C:/Users/zhen/Desktop/WorkFiles/search/data_root/kibana.yml:/usr/share/kibana/config/kibana.yml kibana:7.8.1
+    docker run -d --name redis -p 6379:6379 redis
+
+***************************************************************
+
+四、实现功能
+    主要是search服务的api.py和job.py以及db操作
+    local_quick_start.py --用于初始化db表(确保配置文件中的LOCAL_STORAGE_ROOT路径正确)
+    job.py --启动搜索服务(确保配置文件中的DATA_ROOT路径正确)
+    api.py --启动api服务(确保配置文件中的DATA_ROOT路径正确)
+
+###############################################################
+
+部署相关: 可咨询刘龙兴
+
+1、检查部署文件是否正确
+    build_push_api.sh -- Dockerfile-API -- build-and-run-api.sh
+    build_push_job.sh -- Dockerfile-JOB -- build-and-run-job.sh
+
+2、打包镜像并推到华为云
+    运行脚本文件 build_push_api.sh 和 build_push_job.sh 需根据实际修改
+
+3、检查wheel包是否齐全
+
+4、检查部署脚本--部署--测试
+
+
+
